@@ -1,4 +1,4 @@
-use crate::noise::{hash13, hash33};
+use crate::samplers::{hash13, hash33};
 use crate::util::clamp;
 
 pub fn sample_worley_noise(mut uvw: glam::Vec3, frequency: f32, seed: f32) -> f32 {

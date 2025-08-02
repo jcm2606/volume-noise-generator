@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::noise::hash33;
+use crate::samplers::hash33;
 use crate::util::clamp;
 
 fn project(p: glam::Vec3, f: glam::Vec3, offset: glam::Vec3, frequency: f32) -> f32 {
