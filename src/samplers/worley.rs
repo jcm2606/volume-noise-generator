@@ -1,4 +1,5 @@
-use crate::samplers::{hash33, NoiseSampler, SamplerState};
+use crate::samplers::hash::hash33;
+use crate::samplers::{NoiseSampler, SamplerState};
 use crate::util::clamp;
 
 #[derive(Debug, Clone)]
