@@ -1,113 +1,81 @@
-use noise::core::perlin;
-
+use crate::hash::{pcg_3d, per_pixel_seed, rand_vector_3d};
 use crate::noisetex::{NoisetexRgb8, NoisetexRgba8};
-use crate::samplers::perlin::{Perlin2dNoiseSampler, Perlin3dNoiseSampler};
-use crate::samplers::worley::WorleyNoiseSampler;
-use crate::samplers::{FbmSampler, NoiseSampler, SamplerState};
+use crate::samplers::perlin::{sample_perlin_fbm, sample_perlin_noise};
+use crate::samplers::worley::{sample_worley_fbm, sample_worley_noise};
 use crate::util::remap;
 
+mod hash;
 mod noisetex;
 mod samplers;
 mod util;
 
-fn generate_lf_cloud_noisetex() {
+fn generate_lf_cloud_noisetex(seed: u32) {
     let mut noisetex = NoisetexRgba8::new(128, 128, 128);
 
-    noisetex.fill(|uvw, pixel| {
-        let mut state = SamplerState::default();
+    noisetex.fill(|info, pixel, pos| {
+        let uvw = pos.as_vec3() / info.size().as_vec3();
 
         let perlin_worley = {
-            let perlin_fbm = FbmSampler::builder()
-                .num_octaves(3)
-                .frequency(8f32)
-                .build()
-                .sample::<Perlin3dNoiseSampler>(uvw, &mut state);
+            let perlin: f32 = sample_perlin_fbm(uvw, 4, 12f32, 2f32, seed) * 0.5f32 + 0.5f32;
+            let worley: f32 = sample_worley_fbm(uvw, 4, 4f32, 2f32, seed + 1);
 
-            let worley_fbm = FbmSampler::builder()
-                .num_octaves(3)
-                .frequency(8f32)
-                .build()
-                .sample::<WorleyNoiseSampler>(uvw, &mut state);
-
-            remap(perlin_fbm, 0f32, 1f32, worley_fbm, 1f32)
-            // remap(perlin_fbm, -worley_fbm, 1f32, 0f32, 1f32)
+            //  Closely matches the figures in the Nubis slides.
+            remap(perlin, 0f32, 1f32, 0f32, worley * 2f32)
         };
 
-        let worley_fbm_0 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(16f32)
-            .build()
-            .sample::<WorleyNoiseSampler>(uvw, &mut state);
-
-        let worley_fbm_1 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(22f32)
-            .build()
-            .sample::<WorleyNoiseSampler>(uvw, &mut state);
-
-        let worley_fbm_2 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(28f32)
-            .build()
-            .sample::<WorleyNoiseSampler>(uvw, &mut state);
+        let worley_fbm_1 = sample_worley_fbm(uvw, 3, 8f32, 2f32, seed + 2);
+        let worley_fbm_2 = sample_worley_fbm(uvw, 3, 16f32, 2f32, seed + 3);
+        let worley_fbm_3 = sample_worley_fbm(uvw, 3, 32f32, 2f32, seed + 4);
 
         pixel.r = (perlin_worley * 255f32) as u8;
-        pixel.g = (worley_fbm_0 * 255f32) as u8;
-        pixel.b = (worley_fbm_1 * 255f32) as u8;
-        pixel.a = (worley_fbm_2 * 255f32) as u8;
+        pixel.g = (worley_fbm_1 * 255f32) as u8;
+        pixel.b = (worley_fbm_2 * 255f32) as u8;
+        pixel.a = (worley_fbm_3 * 255f32) as u8;
     });
 
-    // noisetex.save_as_image("output/lfCloudNoiseTex.png");
-    noisetex
-        .save_as_binary("output/lfCloudNoiseTex.bin")
-        .unwrap();
+    // noisetex.save_as_image("output/test.png");
+    noisetex.save_as_binary("output/lfCloudNoiseTex.bin");
 }
 
-fn generate_2d_perlin_noisetex() {
+fn generate_cloud_map_noisetex(seed: u32) {
     let mut noisetex = NoisetexRgba8::new(256, 256, 1);
 
-    noisetex.fill(|uvw, pixel| {
-        let mut state = SamplerState::default();
-        state.frequency = 16f32;
+    noisetex.fill(|info, pixel, pos| {
+        let uvw = pos.as_vec3() / info.size().as_vec3();
 
-        // let perlin = Perlin2dNoiseSampler::sample(uvw, &state);
+        let perlin_worley_0 = {
+            let perlin: f32 = sample_perlin_fbm(uvw, 5, 4f32, 2f32, seed + 1) * 0.5f32 + 0.5f32;
+            let worley: f32 = sample_worley_fbm(uvw, 5, 1f32, 2f32, seed + 2);
 
-        let perlin_fbm_0 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(8f32)
-            .build()
-            .sample::<Perlin2dNoiseSampler>(uvw, &mut state);
+            //  Closely matches the figures in the Nubis slides.
+            remap(perlin, 0f32, 1f32, 0f32, worley * 2f32)
+        };
 
-        let perlin_fbm_1 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(16f32)
-            .build()
-            .sample::<Perlin2dNoiseSampler>(uvw, &mut state);
+        let perlin_worley_1 = {
+            let perlin: f32 = sample_perlin_fbm(uvw, 5, 8f32, 2f32, seed + 1) * 0.5f32 + 0.5f32;
+            let worley: f32 = sample_worley_fbm(uvw, 5, 2f32, 2f32, seed + 2);
 
-        let perlin_fbm_2 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(32f32)
-            .build()
-            .sample::<Perlin2dNoiseSampler>(uvw, &mut state);
+            //  Closely matches the figures in the Nubis slides.
+            remap(perlin, 0f32, 1f32, 0f32, worley * 2f32)
+        };
 
-        let perlin_fbm_3 = FbmSampler::builder()
-            .num_octaves(3)
-            .frequency(64f32)
-            .build()
-            .sample::<Perlin2dNoiseSampler>(uvw, &mut state);
+        let perlin_fbm_1 = sample_perlin_fbm(uvw, 3, 12f32, 2f32, seed + 3) * 0.5f32 + 0.5f32;
+        let perlin_fbm_2 = sample_perlin_fbm(uvw, 3, 18f32, 2f32, seed + 4) * 0.5f32 + 0.5f32;
 
-        pixel.r = (perlin_fbm_0 * 255f32) as u8;
-        pixel.g = (perlin_fbm_1 * 255f32) as u8;
-        pixel.b = (perlin_fbm_2 * 255f32) as u8;
-        pixel.a = (perlin_fbm_3 * 255f32) as u8;
+        pixel.r = (perlin_worley_0 * 255f32) as u8;
+        pixel.g = (perlin_worley_1 * 255f32) as u8;
+        pixel.b = (perlin_fbm_1 * 255f32) as u8;
+        pixel.a = (perlin_fbm_2 * 255f32) as u8;
     });
 
-    noisetex.save_as_image("output/perlin2d.png");
+    noisetex.save_as_image(format!("output/cloudMapNoiseTex_{seed}.png"));
 }
 
 fn main() {
-    generate_lf_cloud_noisetex();
-    generate_2d_perlin_noisetex();
+    // generate_lf_cloud_noisetex(0);
+    for i in 10..20 {
+        generate_cloud_map_noisetex(i);
+    }
 
     println!("Fin!");
 }

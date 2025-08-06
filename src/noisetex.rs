@@ -5,13 +5,23 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 pub type NoisetexRgba8 = Noisetex<Rgba8>;
 pub type NoisetexRgb8 = Noisetex<Rgb8>;
 
+#[derive(Debug, Clone)]
+pub struct NoisetexInfo {
+    width: u32,
+    height: u32,
+    depth: u32,
+}
+impl NoisetexInfo {
+    pub fn size(&self) -> glam::UVec3 {
+        glam::uvec3(self.width, self.height, self.depth)
+    }
+}
+
 pub struct Noisetex<P>
 where
     P: PixelType,
 {
-    width: u32,
-    height: u32,
-    depth: u32,
+    info: NoisetexInfo,
     pixels: Vec<P>,
 }
 impl<P> Noisetex<P>
@@ -19,31 +29,34 @@ where
     P: PixelType,
 {
     pub fn new(width: u32, height: u32, depth: u32) -> Self {
-        Self {
+        let info = NoisetexInfo {
             width,
             height,
             depth,
+        };
+
+        Self {
+            info,
             pixels: vec![P::default(); (width * height * depth) as usize],
         }
     }
 
     pub fn fill<F>(&mut self, function: F)
     where
-        F: Fn(glam::Vec3, &mut P) + Send + Sync,
+        F: Fn(&NoisetexInfo, &mut P, glam::UVec3) + Send + Sync,
     {
         self.pixels
             .par_iter_mut()
             .enumerate()
             .for_each(|(index, pixel)| {
-                let (x, y, z) = Self::index_to_coord(index as u32, self.width, self.height);
-                let uvw = glam::vec3(x as f32, y as f32, z as f32)
-                    / glam::vec3(self.width as f32, self.height as f32, self.depth as f32);
+                let xyz = Self::index_to_coord(index as u32, self.info.width, self.info.height);
+                let xyz = glam::uvec3(xyz.0, xyz.1, xyz.2);
 
-                function(uvw, pixel);
+                function(&self.info, pixel, xyz);
             });
     }
 
-    pub fn save_as_binary<Pt>(&self, path: Pt) -> std::io::Result<()>
+    pub fn save_as_binary<Pt>(&self, path: Pt)
     where
         Pt: AsRef<Path>,
     {
@@ -53,17 +66,17 @@ where
             pixel.write_to_buffer(&mut buffer);
         }
 
-        std::fs::write(path, &buffer)
+        std::fs::write(path, &buffer).unwrap();
     }
 
     pub fn save_as_image<Pt>(&self, path: Pt)
     where
         Pt: AsRef<Path>,
     {
-        let mut img: P::ImageType = P::create_image(self.width, self.height);
+        let mut img: P::ImageType = P::create_image(self.info.width, self.info.height);
 
         for (index, pixel) in self.pixels.iter().enumerate() {
-            let (x, y, _) = Self::index_to_coord(index as u32, self.width, self.height);
+            let (x, y, _) = Self::index_to_coord(index as u32, self.info.width, self.info.height);
 
             pixel.write_to_image(x, y, &mut img);
         }
@@ -99,12 +112,22 @@ pub trait PixelType: Sized + Send + Sync + Clone + Default {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Rgba8 {
     pub r: u8,
     pub g: u8,
     pub b: u8,
     pub a: u8,
+}
+impl Default for Rgba8 {
+    fn default() -> Self {
+        Self {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        }
+    }
 }
 impl PixelType for Rgba8 {
     type ImageType = image::RgbaImage;

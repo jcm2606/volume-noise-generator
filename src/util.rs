@@ -1,4 +1,4 @@
-use std::ops::{Add, Rem};
+use std::ops::{Add, Mul, Rem};
 
 use glam::Vec3;
 use image::GenericImage;
