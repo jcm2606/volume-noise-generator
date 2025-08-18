@@ -23,6 +23,7 @@ pub fn remap_clamp(value: f32, old_min: f32, old_max: f32, new_min: f32, new_max
     )
 }
 
-pub fn fract_gl(val: f32) -> f32 {
-    val - val.floor()
+pub fn smoothstep(a: f32, b: f32, mut value: f32) -> f32 {
+    value = clamp((value - a) / (b - a), 0f32, 1f32);
+    value * value * (3f32 - 2f32 * value)
 }

@@ -129,6 +129,26 @@ impl Default for Rgba8 {
         }
     }
 }
+impl From<(f32, f32, f32, f32)> for Rgba8 {
+    fn from(value: (f32, f32, f32, f32)) -> Self {
+        Self {
+            r: (value.0 * 255f32) as u8,
+            g: (value.1 * 255f32) as u8,
+            b: (value.2 * 255f32) as u8,
+            a: (value.3 * 255f32) as u8,
+        }
+    }
+}
+impl From<f32> for Rgba8 {
+    fn from(value: f32) -> Self {
+        Self {
+            r: (value * 255f32) as u8,
+            g: (value * 255f32) as u8,
+            b: (value * 255f32) as u8,
+            a: 255u8,
+        }
+    }
+}
 impl PixelType for Rgba8 {
     type ImageType = image::RgbaImage;
     type ImagePixelType = image::Rgba<u8>;
@@ -162,6 +182,24 @@ pub struct Rgb8 {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+impl From<(f32, f32, f32)> for Rgb8 {
+    fn from(value: (f32, f32, f32)) -> Self {
+        Self {
+            r: (value.0 * 255f32) as u8,
+            g: (value.1 * 255f32) as u8,
+            b: (value.2 * 255f32) as u8,
+        }
+    }
+}
+impl From<f32> for Rgb8 {
+    fn from(value: f32) -> Self {
+        Self {
+            r: (value * 255f32) as u8,
+            g: (value * 255f32) as u8,
+            b: (value * 255f32) as u8,
+        }
+    }
 }
 impl PixelType for Rgb8 {
     type ImageType = image::RgbImage;

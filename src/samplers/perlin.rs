@@ -1,7 +1,7 @@
-use crate::hash::{hash_ivec3, rand_vector_3d};
+use crate::hash::{hash_ivec3, pcg_1d, rand_vector_3d};
 use crate::util::{clamp, mix};
 
-pub fn sample_perlin_noise(mut uvw: glam::Vec3, frequency: f32, seed: u32) -> f32 {
+pub fn sample_perlin_noise(mut uvw: glam::Vec3, frequency: f32, seed: &mut u32) -> f32 {
     uvw *= frequency;
 
     let pi = uvw.floor().as_ivec3();
@@ -26,6 +26,7 @@ pub fn sample_perlin_noise(mut uvw: glam::Vec3, frequency: f32, seed: u32) -> f3
     let y0 = mix(x00, x10, f.y);
     let y1 = mix(x01, x11, f.y);
 
+    *seed = pcg_1d(*seed);
     mix(y0, y1, f.z)
 }
 
@@ -34,7 +35,7 @@ pub fn sample_perlin_fbm(
     num_octaves: u32,
     frequency: f32,
     lacunarity: f32,
-    seed: u32,
+    seed: &mut u32,
 ) -> f32 {
     let mut sum = 0f32;
     let mut amplitude_sum = 0f32;
@@ -43,7 +44,7 @@ pub fn sample_perlin_fbm(
         let attenuation = f32::powf(lacunarity, octave as f32);
         let amplitude = 1f32 / attenuation;
 
-        let sample = sample_perlin_noise(uvw, frequency * attenuation, seed + octave);
+        let sample = sample_perlin_noise(uvw, frequency * attenuation, seed);
 
         sum += sample * amplitude;
         amplitude_sum += amplitude;
@@ -52,12 +53,19 @@ pub fn sample_perlin_fbm(
     clamp(sum / amplitude_sum, -1f32, 1f32)
 }
 
-fn project(pi: glam::IVec3, pf: glam::Vec3, offset: glam::IVec3, frequency: f32, seed: u32) -> f32 {
+fn project(
+    pi: glam::IVec3,
+    pf: glam::Vec3,
+    offset: glam::IVec3,
+    frequency: f32,
+    seed: &u32,
+) -> f32 {
     let splatted_frequency = glam::IVec3::splat(frequency as i32);
-    let point =
-        rand_vector_3d((hash_ivec3((pi + offset).rem_euclid(splatted_frequency)) & 15u32) + seed)
-            * 2f32
-            - 1f32;
+    let point = (rand_vector_3d(
+        (hash_ivec3((pi + offset).rem_euclid(splatted_frequency)) & 15u32).wrapping_add(*seed),
+    ) * 2f32
+        - 1f32)
+        .normalize();
 
     glam::Vec3::dot(pf - offset.as_vec3(), point)
 }
