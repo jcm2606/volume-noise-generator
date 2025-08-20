@@ -244,12 +244,12 @@ impl From<f32> for Rg8 {
     }
 }
 impl PixelType for Rg8 {
-    type ImageType = image::RgbImage;
-    type ImagePixelType = image::Rgb<u8>;
+    type ImageType = image::GrayAlphaImage;
+    type ImagePixelType = image::LumaA<u8>;
 
     fn create_image(width: u32, height: u32) -> Self::ImageType {
         println!("warning: encoded images for RG8 noise textures are actually saved as RGB8");
-        image::RgbImage::new(width, height)
+        image::GrayAlphaImage::new(width, height)
     }
 
     fn save_image<P>(path: P, img: Self::ImageType)
@@ -260,7 +260,7 @@ impl PixelType for Rg8 {
     }
 
     fn write_to_image(&self, x: u32, y: u32, img: &mut Self::ImageType) {
-        img.put_pixel(x, y, image::Rgb([self.r, self.g, 0u8]));
+        img.put_pixel(x, y, image::LumaA([self.r, self.g]));
     }
 
     fn write_to_buffer(&self, buffer: &mut Vec<u8>) {
@@ -281,12 +281,11 @@ impl From<f32> for R8 {
     }
 }
 impl PixelType for R8 {
-    type ImageType = image::RgbImage;
-    type ImagePixelType = image::Rgb<u8>;
+    type ImageType = image::GrayImage;
+    type ImagePixelType = image::Luma<u8>;
 
     fn create_image(width: u32, height: u32) -> Self::ImageType {
-        println!("warning: encoded images for R8 noise textures are actually saved as RGB8");
-        image::RgbImage::new(width, height)
+        image::GrayImage::new(width, height)
     }
 
     fn save_image<P>(path: P, img: Self::ImageType)
@@ -297,7 +296,7 @@ impl PixelType for R8 {
     }
 
     fn write_to_image(&self, x: u32, y: u32, img: &mut Self::ImageType) {
-        img.put_pixel(x, y, image::Rgb([self.r, self.r, self.r]));
+        img.put_pixel(x, y, image::Luma([self.r]));
     }
 
     fn write_to_buffer(&self, buffer: &mut Vec<u8>) {
