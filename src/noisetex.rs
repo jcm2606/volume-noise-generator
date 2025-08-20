@@ -4,6 +4,8 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 
 pub type NoisetexRgba8 = Noisetex<Rgba8>;
 pub type NoisetexRgb8 = Noisetex<Rgb8>;
+pub type NoisetexRg8 = Noisetex<Rg8>;
+pub type NoisetexR8 = Noisetex<R8>;
 
 #[derive(Debug, Clone)]
 pub struct NoisetexInfo {
@@ -224,5 +226,81 @@ impl PixelType for Rgb8 {
         buffer.push(self.r);
         buffer.push(self.g);
         buffer.push(self.b);
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Default)]
+pub struct Rg8 {
+    pub r: u8,
+    pub g: u8,
+}
+impl From<f32> for Rg8 {
+    fn from(value: f32) -> Self {
+        Self {
+            r: (value * 255f32) as u8,
+            g: (value * 255f32) as u8,
+        }
+    }
+}
+impl PixelType for Rg8 {
+    type ImageType = image::RgbImage;
+    type ImagePixelType = image::Rgb<u8>;
+
+    fn create_image(width: u32, height: u32) -> Self::ImageType {
+        println!("warning: encoded images for RG8 noise textures are actually saved as RGB8");
+        image::RgbImage::new(width, height)
+    }
+
+    fn save_image<P>(path: P, img: Self::ImageType)
+    where
+        P: AsRef<Path>,
+    {
+        img.save(path).unwrap();
+    }
+
+    fn write_to_image(&self, x: u32, y: u32, img: &mut Self::ImageType) {
+        img.put_pixel(x, y, image::Rgb([self.r, self.g, 0u8]));
+    }
+
+    fn write_to_buffer(&self, buffer: &mut Vec<u8>) {
+        buffer.push(self.r);
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Default)]
+pub struct R8 {
+    pub r: u8,
+}
+impl From<f32> for R8 {
+    fn from(value: f32) -> Self {
+        Self {
+            r: (value * 255f32) as u8,
+        }
+    }
+}
+impl PixelType for R8 {
+    type ImageType = image::RgbImage;
+    type ImagePixelType = image::Rgb<u8>;
+
+    fn create_image(width: u32, height: u32) -> Self::ImageType {
+        println!("warning: encoded images for R8 noise textures are actually saved as RGB8");
+        image::RgbImage::new(width, height)
+    }
+
+    fn save_image<P>(path: P, img: Self::ImageType)
+    where
+        P: AsRef<Path>,
+    {
+        img.save(path).unwrap();
+    }
+
+    fn write_to_image(&self, x: u32, y: u32, img: &mut Self::ImageType) {
+        img.put_pixel(x, y, image::Rgb([self.r, self.r, self.r]));
+    }
+
+    fn write_to_buffer(&self, buffer: &mut Vec<u8>) {
+        buffer.push(self.r);
     }
 }

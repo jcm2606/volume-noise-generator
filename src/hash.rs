@@ -83,3 +83,26 @@ pub fn hash_ivec3(v: glam::IVec3) -> u32 {
 
     h
 }
+
+pub fn hash_ivec2(v: glam::IVec2) -> u32 {
+    let x = i32::cast_unsigned(v.x);
+    let y = i32::cast_unsigned(v.y);
+
+    let mut h = 0xDEADBEEFu32;
+    h ^= x
+        .wrapping_add(0x9E3779B9u32)
+        .wrapping_add(h << 6u32)
+        .wrapping_add(h >> 2u32);
+    h ^= y
+        .wrapping_add(0x9E3779B9u32)
+        .wrapping_add(h << 6u32)
+        .wrapping_add(h >> 2u32);
+
+    h ^= h >> 16;
+    h = h.wrapping_mul(0x85EBCA6Bu32);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0xC2B2AE35u32);
+    h ^= h >> 16;
+
+    h
+}
