@@ -248,7 +248,6 @@ impl PixelType for Rg8 {
     type ImagePixelType = image::LumaA<u8>;
 
     fn create_image(width: u32, height: u32) -> Self::ImageType {
-        println!("warning: encoded images for RG8 noise textures are actually saved as RGB8");
         image::GrayAlphaImage::new(width, height)
     }
 
