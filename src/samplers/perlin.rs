@@ -64,8 +64,7 @@ fn project(
     let point = (rand_vector_3d(
         (hash_ivec3((pi + offset).rem_euclid(splatted_frequency)) & 15u32).wrapping_add(*seed),
     ) * 2f32
-        - 1f32)
-        .normalize();
+        - 1f32);
 
     glam::Vec3::dot(pf - offset.as_vec3(), point)
 }
@@ -121,8 +120,7 @@ fn project_2d(
     let point = (rand_vector_2d(
         (hash_ivec2((pi + offset).rem_euclid(splatted_frequency)) & 15u32).wrapping_add(*seed),
     ) * 2f32
-        - 1f32)
-        .normalize();
+        - 1f32);
 
     glam::Vec2::dot(pf - offset.as_vec2(), point)
 }
