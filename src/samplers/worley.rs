@@ -1,130 +1,126 @@
-use crate::hash::{hash_ivec2, hash_ivec3, pcg_1d, rand_vector_2d, rand_vector_3d};
-use crate::util::clamp;
+use bon::Builder;
+use glam::{Vec3Swizzles, Vec4Swizzles};
 
-pub fn sample_worley_noise(mut uvw: glam::Vec3, frequency: f32, seed: &mut u32) -> (f32, f32) {
-    let splatted_frequency = glam::Vec3::splat(frequency);
-    uvw *= splatted_frequency;
+use crate::hash::{hash_ivec2, hash_ivec3, pcg_1d, rand_unit_vector_2d, rand_unit_vector_3d, rand_vector_2d, rand_vector_3d};
+use crate::random::hash::{pcg_33, pcg_44};
+use crate::samplers::{NoiseSampler, NoiseSamplerState, Smoothing};
+use crate::util::{SmoothingFn, clamp, cubic_smooth};
 
-    let p = uvw.floor().as_ivec3();
-    let f = uvw.fract();
+#[derive(Debug)]
+pub enum WorleyMode {
+    F1,
+    F2,
+    OneMinusF1,
+    OneMinusF2,
+    F2MinusF1,
+    F1MinusF2,
+}
 
-    let mut f1_dist = 1f32;
-    let mut f2_dist = 1f32;
+#[derive(Debug, Builder)]
+pub struct WorleySampler {
+    pub frequency: f32,
+    #[builder(default = 0)]
+    pub seed: u32,
+    #[builder(default = Smoothing::None)]
+    pub smoothing: Smoothing,
+    #[builder(default = WorleyMode::OneMinusF1)]
+    pub mode: WorleyMode,
+}
+impl NoiseSampler<f32> for WorleySampler {
+    fn sample_2d(&mut self, mut uv: glam::Vec2) -> f32 {
+        uv *= glam::Vec2::splat(self.frequency);
 
-    for x in -1..=1 {
-        for y in -1..=1 {
-            for z in -1..=1 {
-                let offset = glam::ivec3(x, y, z);
+        let p = uv.floor().as_ivec2();
+        let f = uv.fract();
 
-                let hash = hash_ivec3((p + offset).rem_euclid(splatted_frequency.as_ivec3()))
-                    .wrapping_add(*seed);
-                let feature = rand_vector_3d(hash) + offset.as_vec3();
+        let mut closest_dist: f32 = 1.0;
+        let mut second_closest_dist: f32 = 1.0;
 
-                let dist = (f - feature).length_squared();
-                if dist < f1_dist {
-                    f2_dist = f1_dist;
-                    f1_dist = dist;
-                } else if dist < f2_dist {
-                    f2_dist = dist;
+        for x in -1..=1 {
+            for y in -1..=1 {
+                let offset = glam::IVec2::new(x, y);
+                let cell = (p + offset).rem_euclid(glam::IVec2::splat(self.frequency as i32));
+
+                let hash3 = pcg_33(glam::UVec3::new(cell.x.cast_unsigned(), cell.y.cast_unsigned(), self.seed));
+                let point = (hash3.xy().as_vec2() / (u32::MAX as f32)) + offset.as_vec2();
+
+                let dist = f.distance(point);
+                if dist < closest_dist {
+                    second_closest_dist = closest_dist;
+                    closest_dist = dist;
+                } else if dist < second_closest_dist {
+                    second_closest_dist = dist;
                 }
             }
         }
+
+        let value = match &self.mode {
+            WorleyMode::F1 => closest_dist,
+            WorleyMode::F2 => second_closest_dist,
+            WorleyMode::OneMinusF1 => 1.0 - closest_dist,
+            WorleyMode::OneMinusF2 => 1.0 - second_closest_dist,
+            WorleyMode::F2MinusF1 => second_closest_dist - closest_dist,
+            WorleyMode::F1MinusF2 => closest_dist - second_closest_dist,
+        };
+
+        self.smoothing.smooth(value.clamp(0.0, 1.0))
     }
+    
+    fn sample_3d(&mut self, mut uvw: glam::Vec3) -> f32 {
+        uvw *= glam::Vec3::splat(self.frequency);
 
-    f1_dist = clamp(f1_dist.sqrt(), -1f32, 1f32);
-    f2_dist = clamp(f2_dist.sqrt(), -1f32, 1f32);
+        let p = uvw.floor().as_ivec3();
+        let f = uvw.fract();
 
-    *seed = pcg_1d(*seed);
-    (f1_dist, f2_dist)
-}
+        let mut closest_dist: f32 = 1.0;
+        let mut second_closest_dist: f32 = 1.0;
 
-pub fn sample_worley_fbm(
-    uvw: glam::Vec3,
-    num_octaves: u32,
-    frequency: f32,
-    lacunarity: f32,
-    seed: &mut u32,
-) -> (f32, f32) {
-    let mut f1_sum = 0f32;
-    let mut f2_sum = 0f32;
-    let mut amplitude_sum = 0f32;
+        for x in -1..=1 {
+            for y in -1..=1 {
+                for z in -1..=1 {
+                    let offset = glam::IVec3::new(x, y, z);
+                    let cell = (p + offset).rem_euclid(glam::IVec3::splat(self.frequency as i32));
 
-    for octave in 0..num_octaves {
-        let attenuation = f32::powf(lacunarity, octave as f32);
-        let amplitude = 1f32 / attenuation;
+                    let hash4 = pcg_44(glam::UVec4::new(cell.x.cast_unsigned(), cell.y.cast_unsigned(), cell.z.cast_unsigned(), self.seed));
+                    let point = (hash4.xyz().as_vec3() / (u32::MAX as f32)) + offset.as_vec3();
 
-        let (f1_sample, f2_sample) = sample_worley_noise(uvw, frequency * attenuation, seed);
-
-        f1_sum += f1_sample * amplitude;
-        f2_sum += f2_sample * amplitude;
-        amplitude_sum += amplitude;
-    }
-
-    f1_sum = clamp(f1_sum / amplitude_sum, -1f32, 1f32);
-    f2_sum = clamp(f2_sum / amplitude_sum, -1f32, 1f32);
-
-    (f1_sum, f2_sum)
-}
-
-pub fn sample_worley_noise_2d(mut uvw: glam::Vec2, frequency: f32, seed: &mut u32) -> (f32, f32) {
-    let splatted_frequency = glam::Vec2::splat(frequency);
-    uvw *= splatted_frequency;
-
-    let p = uvw.floor().as_ivec2();
-    let f = uvw.fract();
-
-    let mut f1_dist = 1f32;
-    let mut f2_dist = 1f32;
-
-    for x in -1..=1 {
-        for y in -1..=1 {
-            let offset = glam::ivec2(x, y);
-
-            let hash = hash_ivec2((p + offset).rem_euclid(splatted_frequency.as_ivec2()))
-                .wrapping_add(*seed);
-            let feature = rand_vector_2d(hash) + offset.as_vec2();
-
-            let dist = (f - feature).length_squared();
-            if dist < f1_dist {
-                f2_dist = f1_dist;
-                f1_dist = dist;
-            } else if dist < f2_dist {
-                f2_dist = dist;
+                    let dist = f.distance(point);
+                    if dist < closest_dist {
+                        second_closest_dist = closest_dist;
+                        closest_dist = dist;
+                    } else if dist < second_closest_dist {
+                        second_closest_dist = dist;
+                    }
+                }
             }
         }
+
+        let value = match &self.mode {
+            WorleyMode::F1 => closest_dist,
+            WorleyMode::F2 => second_closest_dist,
+            WorleyMode::OneMinusF1 => 1.0 - closest_dist,
+            WorleyMode::OneMinusF2 => 1.0 - second_closest_dist,
+            WorleyMode::F2MinusF1 => second_closest_dist - closest_dist,
+            WorleyMode::F1MinusF2 => closest_dist - second_closest_dist,
+        };
+
+        self.smoothing.smooth(value.clamp(0.0, 1.0))
     }
-
-    f1_dist = clamp(f1_dist.sqrt(), -1f32, 1f32);
-    f2_dist = clamp(f2_dist.sqrt(), -1f32, 1f32);
-
-    *seed = pcg_1d(*seed);
-    (f1_dist, f2_dist)
 }
-
-pub fn sample_worley_fbm_2d(
-    uvw: glam::Vec2,
-    num_octaves: u32,
-    frequency: f32,
-    lacunarity: f32,
-    seed: &mut u32,
-) -> (f32, f32) {
-    let mut f1_sum = 0f32;
-    let mut f2_sum = 0f32;
-    let mut amplitude_sum = 0f32;
-
-    for octave in 0..num_octaves {
-        let attenuation = f32::powf(lacunarity, octave as f32);
-        let amplitude = 1f32 / attenuation;
-
-        let (f1_sample, f2_sample) = sample_worley_noise_2d(uvw, frequency * attenuation, seed);
-
-        f1_sum += f1_sample * amplitude;
-        f2_sum += f2_sample * amplitude;
-        amplitude_sum += amplitude;
+impl NoiseSamplerState for WorleySampler {
+    fn get_frequency(&self) -> f32 {
+        self.frequency
     }
 
-    f1_sum = clamp(f1_sum / amplitude_sum, -1f32, 1f32);
-    f2_sum = clamp(f2_sum / amplitude_sum, -1f32, 1f32);
+    fn get_seed(&self) -> u32 {
+        self.seed
+    }
 
-    (f1_sum, f2_sum)
+    fn set_frequency(&mut self, new_frequency: f32) {
+        self.frequency = new_frequency;
+    }
+
+    fn set_seed(&mut self, new_seed: u32) {
+        self.seed = new_seed;
+    }
 }

@@ -1,3 +1,5 @@
+use std::f32;
+
 pub fn pcg_1d(v: u32) -> u32 {
     let state = v.wrapping_mul(747796405u32).wrapping_add(2891336453u32);
     let word =
@@ -41,7 +43,7 @@ pub fn rand_vector_2d(v: u32) -> glam::Vec2 {
     let x = pcg_1d(v ^ 0xA53C9A1Fu32);
     let y = pcg_1d(v ^ 0xC2B2AE35u32);
 
-    glam::vec2(x as f32, y as f32) / u32::MAX as f32
+    (glam::vec2(x as f32, y as f32) / u32::MAX as f32) * 2.0 - 1.0
 }
 
 pub fn rand_vector_3d(v: u32) -> glam::Vec3 {
@@ -49,7 +51,28 @@ pub fn rand_vector_3d(v: u32) -> glam::Vec3 {
     let y = pcg_1d(v ^ 0xC2B2AE35u32);
     let z = pcg_1d(v ^ 0x27D4EB2Fu32);
 
-    glam::vec3(x as f32, y as f32, z as f32) / u32::MAX as f32
+    (glam::vec3(x as f32, y as f32, z as f32) / u32::MAX as f32) * 2.0 - 1.0
+}
+
+pub fn rand_unit_vector_3d(v: u32) -> glam::Vec3 {
+    let theta = ((pcg_1d(v ^ 0xA53C9A1Fu32) as f32) / (u32::MAX as f32)) * 2.0 * f32::consts::PI;
+
+    let z = (pcg_1d(v ^ 0xC2B2AE35u32) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+    let radius = (1.0 - z * z).sqrt();
+
+    let x = radius * theta.cos();
+    let y = radius * theta.sin();
+
+    glam::Vec3::new(x, y, z)
+}
+
+pub fn rand_unit_vector_2d(v: u32) -> glam::Vec2 {
+    let theta = ((pcg_1d(v ^ 0xA53C9A1Fu32) as f32) / (u32::MAX as f32)) * 2.0 * f32::consts::PI;
+
+    let x = theta.cos();
+    let y = theta.sin();
+
+    glam::Vec2::new(x, y)
 }
 
 pub fn per_pixel_seed(xyz: glam::UVec3, size: glam::UVec3) -> u32 {
